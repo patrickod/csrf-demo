@@ -1,0 +1,18 @@
+<html>
+
+<head>Target origin</head>
+
+<body>
+    <h1>Target origin</h1>
+    <p>Submit the form to the primary origin with CSRF</p>
+    <p>
+        CSRF token is
+    <pre>{{ .CSRFToken }}</pre>
+    </p>
+    <form method="post" action="/submit">
+        {{ .csrfField}}
+        <button type="submit">Submit</button>
+    </form>
+</body>
+
+</html>
