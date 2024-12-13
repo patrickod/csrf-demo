@@ -23,6 +23,10 @@ var attackerTemplate = template.Must(template.New("attacker").Parse(string(attac
 var targetTemplateBytes []byte
 var targetTemplate = template.Must(template.New("target").Parse(string(targetTemplateBytes)))
 
+//go:embed inject.js
+var injectJSTemplateBytes []byte
+var injectJSTemplate = template.Must(template.New("inject.js").Parse(string(injectJSTemplateBytes)))
+
 var domain = flag.String("domain", "foo.example.com", "domain to use for the demo (bind it and bad.$DOMAIN to localhost with /etc/hosts)")
 var tlsCertFile = flag.String("tls-cert", "", "path to TLS certificate file")
 var tlsKeyFile = flag.String("tls-key", "", "path to TLS key file")
@@ -65,25 +69,42 @@ func main() {
 	}
 }
 
+func serveTargetHome(w http.ResponseWriter, r *http.Request) {
+
+	data := map[string]any{
+		csrf.TemplateTag: csrf.TemplateField(r),
+		"CSRFToken":      csrf.Token(r),
+	}
+	w.Header().Set("Content-Type", "text/html")
+
+	b := bytes.NewBuffer(nil)
+	if err := targetTemplate.Execute(b, data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if _, err := io.Copy(w, b); err != nil {
+		log.Printf("error writing response: %v", err)
+		return
+	}
+}
+
 func primaryOriginHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		data := map[string]any{
-			csrf.TemplateTag: csrf.TemplateField(r),
-			"CSRFToken":      csrf.Token(r),
-		}
-		w.Header().Set("Content-Type", "text/html")
-
-		b := bytes.NewBuffer(nil)
-		if err := targetTemplate.Execute(b, data); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		switch r.URL.Path {
+		case "/":
+			serveTargetHome(w, r)
+			return
+		case "/inject.js":
+			w.Header().Set("Content-Type", "application/javascript")
+			if err := injectJSTemplate.Execute(w, map[string]any{"Domain": *domain}); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		default:
+			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
-		if _, err := io.Copy(w, b); err != nil {
-			log.Printf("error writing response: %v", err)
-			return
-		}
-
 	case "POST":
 		if r.URL.Path == "/submit" {
 			io.WriteString(w, "SUCCESSFUL POST REQUEST")
