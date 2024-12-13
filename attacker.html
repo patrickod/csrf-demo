@@ -1,23 +1,13 @@
 <html>
 
 <head>Attacker origin</head>
+<title>Attacker origin</title>
 
 <body>
     <h1>Attacker origin</h1>
-    <p>Submit the form to perform CSRF attack</p>
-    <form method="post" action="https://{{ .Domain }}/submit">
-        <input type="text" name="gorilla.csrf.Token" , value="{{ .Token }}">
-        <button type="submit">Submit</button>
-    </form>
 
-    <hr />
-
-    <h2>Set Cookie</h2>
-    <p>Submit the form to perform CSRF attack</p>
-    <form method="post" action="/set-cookie">
-        <input type="text" name="token" , placeholder="cookie value to set for CSRF">
-        <button type="submit">Submit</button>
-    </form>
+    <p>Click the submit button to trigger the XSS. Your cookie has already been set to the correct value by the injected script.<p>
+    <script src="https://target.{{ .Domain }}/inject.js"></script>
 </body>
 
 </html>

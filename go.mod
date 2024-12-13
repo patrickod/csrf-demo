@@ -7,4 +7,4 @@ require (
 	github.com/gorilla/securecookie v1.1.2 // indirect
 )
 
-replace github.com/gorilla/csrf => ../csrf
+replace github.com/gorilla/csrf => /Users/patrickod/code/gorilla/csrf

