@@ -19,14 +19,30 @@
         Token: {{ .Token }}<br/>
         Cookie: {{ .Cookie }}<br/>
     </code>
+
     <hr />
+
     <h3>Submit CSRF to <code>https://target.{{ .Domain }}/submit</code></h3>
+    <p>This will be accepted because gorilla/csrf does not check the origin or referer headers</p>
     <form method="post" action="https://target.{{ .Domain }}/submit">
         <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
         <button type="submit">Submit CSRF</button>
     </form>
+
+    <hr/>
+
     <h3>Submit CSRF to <code>https://safe.{{ .Domain }}/submit</code></h3>
+    <p>This will be rejected due to origin/referer enforcement</p>
     <form method="post" action="https://safe.{{ .Domain }}/submit">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
+        <button type="submit">Submit CSRF</button>
+    </form>
+
+    <hr/>
+
+    <h3>Submit CSRF to <code>https://trusted.{{ .Domain }}/submit</code></h3>
+    <p>This will be permitted because attack.example.test is trusted as an origin for this endpoint</p>
+    <form method="post" action="https://trusted.{{ .Domain }}/submit">
         <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
         <button type="submit">Submit CSRF</button>
     </form>

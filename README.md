@@ -36,9 +36,11 @@ this repository contains a demonstration CSRF attack exploiting a vulnerability 
 ## instructions to replicate demo
 
 1. install `mkcert`
-2. use `mkcert` to create a certificate for the following domains
-  - `example.test`
-  - `*.example.test`
-3. point each of `target.example.test`, `bad.example.test`, and `safe.example.test` to localhost in `/etc/hosts` or similar.
+2. use `mkcert` to create a certificate for the `*.example.test` domain
+3. point each of the following domains to localhost in `/etc/hosts` or similar.
+  - `attack.example.test`
+  - `safe.example.test`
+  - `target.example.test`
+  - `trusted.example.test`
 4. run `sudo go run main.go -tls-cert=YOUR_CERT_FILE -tls-key=YOUR_KEY_FILE -domain=example.test`
-5. navigate to `https://target.example.test` & use the forms to make requests to `https://bad.example.test` and `https://safe.example.test`
+5. navigate to `https://target.example.test` & use the forms to make requests to `https://attack.example.test` and `https://safe.example.test`

@@ -31,7 +31,7 @@ var (
 	targetTemplate      = template.Must(template.New("target").Parse(string(targetTemplateBytes)))
 
 	// CLI flags
-	domain      = flag.String("domain", "example.test", "domain to use for the demo (bind it, target.$DOMAIN, and bad.$DOMAIN to localhost with /etc/hosts)")
+	domain      = flag.String("domain", "example.test", "domain to use for the demo (bind it, target.$DOMAIN, and attack.$DOMAIN to localhost with /etc/hosts)")
 	listen      = flag.String("listen", ":443", "address to listen on")
 	tlsCertFile = flag.String("tls-cert", "", "path to TLS certificate file")
 	tlsKeyFile  = flag.String("tls-key", "", "path to TLS key file")
@@ -55,8 +55,18 @@ func main() {
 	}
 	log.Printf("listening on %s", ln.Addr())
 
+	// vulnerable origin with current gorilla/csrf
 	vulnerableOrigin := csrf.Protect([]byte("32-byte-long-auth-key"), csrf.Secure(true))(http.HandlerFunc(targetOriginHandler))
+	// safe origin with patched gorilla/csrf
 	safeOrigin := safe.Protect([]byte("32-byte-long-auth-key"), safe.Secure(true))(http.HandlerFunc(targetOriginHandler))
+
+	// safe origin with patched gorilla/csrf that permits cross-origin requests
+	// from our attacker host
+	trustedCrossOrigin := safe.Protect(
+		[]byte("32-byte-long-auth-key"),
+		safe.Secure(true),
+		safe.TrustedOrigins([]string{"attack.example.test"}),
+	)(http.HandlerFunc(targetOriginHandler))
 
 	as := newAttackerServer(*domain)
 
@@ -64,7 +74,9 @@ func main() {
 		switch {
 		case strings.HasPrefix(r.Host, "safe."):
 			safeOrigin.ServeHTTP(w, r)
-		case strings.HasPrefix(r.Host, "bad."):
+		case strings.HasPrefix(r.Host, "trusted."):
+			trustedCrossOrigin.ServeHTTP(w, r)
+		case strings.HasPrefix(r.Host, "attack."):
 			as.ServeHTTP(w, r)
 		default:
 			vulnerableOrigin.ServeHTTP(w, r)
@@ -157,8 +169,6 @@ func (as *attackerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		as.attackerOriginHandler(w, r)
-	// case "POST":
-	// 	as.attackerOriginHandler(w, r)
 	default:
 		http.Error(w, "invalid method", http.StatusMethodNotAllowed)
 	}
@@ -181,6 +191,9 @@ func (as *attackerServer) attackerOriginHandler(w http.ResponseWriter, _ *http.R
 		Domain: *domain,
 	}
 	http.SetCookie(w, &clobberCookie)
+
+	// Set Referrer-Policy to no-referrer to prevent leaking the attacker origin
+	// w.Header().Set("Referrer-Policy", "no-referrer")
 
 	// template the attacker page
 	w.Header().Set("Content-Type", "text/html")
