@@ -1,7 +1,7 @@
 <html>
 
 <head>
-<title>Attacker origin</title>
+    <title>Attacker origin</title>
 </head>
 
 <body>
@@ -22,26 +22,34 @@
 
     <hr />
 
-    <h3>Submit CSRF to <code>https://target.{{ .Domain }}/submit</code></h3>
+    <h3>Submit CSRF to vulnerable <code>https://target.{{ .Domain }}/submit</code></h3>
     <p>This will be accepted because gorilla/csrf does not check the origin or referer headers</p>
     <form method="post" action="https://target.{{ .Domain }}/submit">
         <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
         <button type="submit">Submit CSRF</button>
     </form>
 
-    <hr/>
+    <hr />
 
-    <h3>Submit CSRF to <code>https://safe.{{ .Domain }}/submit</code></h3>
-    <p>This will be rejected due to origin/referer enforcement</p>
+    <h3>Submit CSRF to patched <code>https://safe.{{ .Domain }}/submit</code></h3>
+    <p>This request is submitted to an endpoint running the patched gorilla/csrf code and will be rejected due to Origin
+        validation.
+        <a href="https://github.com/patrickod/csrf-demo/blob/main/main.go#L61">View the source code</a>
+    </p>
+
     <form method="post" action="https://safe.{{ .Domain }}/submit">
         <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
         <button type="submit">Submit CSRF</button>
     </form>
 
-    <hr/>
+    <hr />
 
     <h3>Submit CSRF to <code>https://trusted.{{ .Domain }}/submit</code></h3>
-    <p>This will be permitted because attack.example.test is trusted as an origin for this endpoint</p>
+    <p>This request is submitted to an endpoint running the patched gorilla/csrf code and will be permitted due to the
+        Origin being explicitly trusted in an allowlist.
+        <a href="https://github.com/patrickod/csrf-demo/blob/main/main.go#L65-L69">View the source code</a>
+    </p>
+
     <form method="post" action="https://trusted.{{ .Domain }}/submit">
         <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
         <button type="submit">Submit CSRF</button>
