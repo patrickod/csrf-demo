@@ -1,0 +1,22 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+.btn {
+@apply font-bold py-2 px-2 rounded cursor-pointer;
+}
+.btn-blue {
+@apply bg-blue-700 text-white;
+}
+.btn-blue:hover {
+@apply bg-blue-900;
+}
+
+code {
+    @apply font-mono text-red-800 dark:text-red-500;
+}
+
+tbody td {
+    @apply p-2;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));

@@ -1,0 +1,184 @@
+<html>
+
+<head>
+    <title>gorilla/csrf CSRF demo</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="./static/output.css" />
+</head>
+
+<body class="dark:bg-gray-900">
+    <div class="prose dark:prose-invert md:container md:mx-auto p-4">
+        <h1 class=" dark:text-white text-center">gorilla/csrf CSRF demo</h1>
+        <div class="lg:grid lg:grid-cols-2 gap-8">
+            <div>
+                <div>
+                    <h2 class="dark:text-white">What</h2>
+                    <p>
+                        This page demonstrates a CSRF vulnerability in the <a href="https://github.com/gorilla/csrf">gorilla/csrf</a> Go library.
+                        This vulnerability exists in all published versions of gorilla/csrf since its initial release.
+                    </p>
+                </div>
+                <div>
+                    <h2 class="dark:text-white">How</h2>
+                    <p>
+                        gorilla/csrf does not validate the Origin header of incoming requests against an allowlist and
+                        instead performs CSRF validation by inspecting the Referer
+                        header. These Referer header checks <strong>only run when it believes the request is being
+                            served over TLS</strong> but due to a mishandling of the <code>net/http.Request</code>
+                        API these checks <strong>never run in production.</strong>
+                    </p>
+                    <p>
+                        Specifically gorilla/csrf <a
+                            href="https://github.com/gorilla/csrf/blob/v1.7.2/csrf.go#L248">inspects the
+                            value of
+                            r.URL.Scheme</a> to determine whether the request is being served over TLS
+                    </p>
+                    <pre>
+if r.URL.Scheme == "https" {
+    // Fetch the Referer value. Call the error handler if it's empty or
+    // otherwise fails to parse.
+    referer, err := url.Parse(r.Referer())
+    if err != nil || referer.String() == "" {
+        r = envError(r, ErrNoReferer)
+        cs.opts.ErrorHandler.ServeHTTP(w, r)
+        return
+    }
+    ...
+                    </pre>
+                    <p>However, <a href="https://pkg.go.dev/net/http#Request">per the Go spec</a>, this field is never populated for "server" requests.</p>
+                    <pre>
+// URL specifies either the URI being requested (for server
+// requests) or the URL to access (for client requests).
+//
+// For server requests, the URL is parsed from the URI
+// supplied on the Request-Line as stored in RequestURI.  For
+// most requests, fields other than Path and RawQuery will be
+// empty. (See [RFC 7230, Section 5.3](https://rfc-editor.org/rfc/rfc7230.html#section-5.3))
+//
+// For client requests, the URL's Host specifies the server to
+// connect to, while the Request's Host field optionally
+// specifies the Host header value to send in the HTTP
+// request.
+URL *[url](https://pkg.go.dev/net/url).[URL](https://pkg.go.dev/net/url#URL)
+                    </pre>
+                    <p>
+                        <span class="italic font-bold">“But what about the unit tests?!”</span> I hear you ask.
+                        Unfortunately the
+                        <code>net/httptest.NewRequest</code> helper function that the <a
+                            href="https://github.com/gorilla/csrf/blob/v1.7.2/csrf_test.go#L246">gorilla/csrf test
+                            suite</a></a> relies on
+                        contains a subtle bug whereby it will populate the <code>r.URL.Scheme</code> field on the
+                        requests that it creates when passed a full URL string. This results in
+                        <code>http.Request</code> objects that are unlike any that will exist in production allowing
+                        unit tests to pass that would otherwise fail.
+                    </p>
+                    <p>Here is a <a href="https://go.dev/play/p/RED4YWPDsbc">Go playground</a> that demonstrates the
+                        <code>httptest.NewRequest</code> behavior in question.
+                    </p>
+                </div>
+                <div>
+                    <h2 class="dark:text-white">Timeline</h2>
+                    <p>
+                    <ul>
+                        <li><span class="inline-block w-24">2015-08-04</span><a href="https://github.com/gorilla/csrf/commit/21dad7a81a52b69de043cd46eb1e603cf5d1c6d1">initial gorilla/csrf commit with vulnerability</a> </li>
+                        <li>
+                            <span class="inline-block w-24">2024-12-15</span>initial disclosure to gorilla project maintainers </li>
+                        <li>
+                            <span class="inline-block w-24">2025-01-06</span>patch submitted upstream
+                        </li>
+                        <li>
+                            <span class="inline-block w-24">2025-01-23</span>patch accepted into project main branch
+                        </li>
+                        <li>
+                            <span class="inline-block w-24">{{ .Today }}</span>you are here
+                        </li>
+                        <li>
+                            <span class="inline-block w-24">???</span>patched gorilla/csrf version released
+                        </li>
+                    </ul>
+                    </p>
+                </div>
+            </div>
+            <div>
+                <h2 class="dark:text-white">CSRF attack and patch demonstration</h2>
+                <p>
+                    This page scrapes <a href="https://target.{{ .Domain }}"><code>target.{{ .Domain }}</code></a> for a valid CSRF token & cookie combination to use for its attack.
+                    It sets the exfiltated CSRF cookie on the top level domain that it shares in
+                    common with the target origin but with a more specific path matching the target form.
+                </p>
+                <p>
+                    We rely on the fact that many CSRF frameworks including gorilla/csrf set CSRF cookies with
+                    <code>Path=/</code> so that they are sent accompanying forms submissions to all paths on the domain.
+                    Browsers send cookies ordered by <span class="italic">most specific path</span> first over domain so
+                    this
+                    malicious cookie will be sent in preference instead of any existing CSRF cookie set by the
+                    application.
+                </p>
+                <div>
+                    <h4>Your attack values</h4>
+                    <div class="text-sm">
+                        <div>CSRF Token: <code class="dark:text-white break-all">{{ .Token }}</code></div>
+                        <div>Cookie: <code class="dark:text-white break-all">{{ .Cookie }}</code></div>
+                    </div>
+                </div>
+                <table class="table-auto">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Target</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm dark:text-gray-100">
+                        <tr>
+                            <td class="align-middle">
+                                <form method="post" action="https://target.{{ .Domain }}/submit">
+                                    <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
+                                    <button type="submit" class="btn btn-blue">Submit CSRF</button>
+                                </form>
+                            </td>
+                            <td class="align-middle">
+                                <code>target.{{ .Domain }}</code>
+                            </td>
+                            <td class="align-middle">
+                                successful CSRF attack against <span class="underline">vulnerable</span> gorilla/csrf
+                                codebase
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="align-middle">
+                                <form method="post" action="https://safe.{{ .Domain }}/submit">
+                                    <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
+                                    <button type="submit" class="btn btn-blue">Submit CSRF</button>
+                                </form>
+                            </td>
+                            <td class="align-middle">
+                                <code>safe.{{ .Domain }}</code>
+                            </td>
+                            <td class="align-middle">
+                                failed CSRF attack against <span class="underline">patched</span> gorilla/csrf codebase
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div>
+                    <h2 class="dark:text-white">Who</h2>
+                    <p>I'm <a href="https://patrickod.computer">Patrick O'Doherty</a>, a Security Engineer living in San
+                        Francisco.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="flex justify-center my-5">
+        <div class="w-full max-w-screen-lg text-center">
+            <div class="text-sm">
+                <p>
+                    &copy; 2025 &mdash; Patrick O'Doherty
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

