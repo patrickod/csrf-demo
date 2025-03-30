@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"embed"
 	"encoding/json"
@@ -15,8 +16,16 @@ import (
 	"strings"
 	"time"
 
-	safe "csrf/fixed"
-	csrf "csrf/vulnerable"
+	safe "github.com/gorilla/csrf"
+	csrf "github.com/gorilla/csrf/vulnerable"
+	"tailscale.com/tsweb"
+
+	// prometheus varz metrics export
+	_ "tailscale.com/tsweb/promvarz"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -30,6 +39,29 @@ var (
 	tlsCertFile = flag.String("tls-cert", "", "path to TLS certificate file")
 	tlsKeyFile  = flag.String("tls-key", "", "path to TLS key file")
 	dev         = flag.Bool("dev", false, "load assets from disk instead of embedded FS")
+	debug       = flag.Bool("debug", false, "enable debug HTTP interface on :8081")
+)
+
+var (
+	inFlightGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "http_in_flight_requests",
+		Help: "A gauge of requests currently being served by the wrapped handler.",
+	})
+	counter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "A counter for requests to the wrapped handler.",
+		},
+		[]string{"domain", "code", "method"},
+	)
+	duration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_request_duration_seconds",
+			Help:    "A histogram of latencies for requests.",
+			Buckets: []float64{.25, .5, 1, 2.5, 5, 10},
+		},
+		[]string{"domain", "method"},
+	)
 )
 
 func main() {
@@ -38,14 +70,36 @@ func main() {
 	ln := createListener()
 	log.Printf("listening on %s", ln.Addr())
 
+	if *debug {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		runDebugServer(ctx)
+	}
+
 	// create handlers for the target, safe, and trusted origins with different CSRF configurations
 	h := targetOriginHandler()
 
 	// vulnerable origin with current gorilla/csrf
 	vulnerableOrigin := csrf.Protect([]byte("32-byte-long-auth-key"), csrf.Secure(true))(h)
+	vulnerableOriginWrapped := promhttp.InstrumentHandlerInFlight(inFlightGauge,
+		promhttp.InstrumentHandlerDuration(
+			duration.MustCurryWith(prometheus.Labels{"domain": "target"}),
+			promhttp.InstrumentHandlerCounter(
+				counter.MustCurryWith(prometheus.Labels{"domain": "target"}),
+				vulnerableOrigin,
+			),
+		))
 
 	// safe origin with patched gorilla/csrf
 	safeOrigin := safe.Protect([]byte("32-byte-long-auth-key"), safe.Secure(true))(h)
+	safeOriginWrapped := promhttp.InstrumentHandlerInFlight(inFlightGauge,
+		promhttp.InstrumentHandlerDuration(
+			duration.MustCurryWith(prometheus.Labels{"domain": "safe"}),
+			promhttp.InstrumentHandlerCounter(
+				counter.MustCurryWith(prometheus.Labels{"domain": "safe"}),
+				safeOrigin,
+			),
+		))
 
 	// safe origin with patched gorilla/csrf that allows cross-origin requests
 	// from our attacker host
@@ -54,14 +108,56 @@ func main() {
 		safe.Secure(true),
 		safe.TrustedOrigins([]string{fmt.Sprintf("attack.%s", *domain)}),
 	)(h)
+	trustedCrossOriginWrapped := promhttp.InstrumentHandlerInFlight(inFlightGauge,
+		promhttp.InstrumentHandlerDuration(
+			duration.MustCurryWith(prometheus.Labels{"domain": "trusted"}),
+			promhttp.InstrumentHandlerCounter(
+				counter.MustCurryWith(prometheus.Labels{"domain": "trusted"}),
+				trustedCrossOrigin,
+			),
+		))
 
 	// attackServer serves the CSRF form with scraped CSRF token values from the target
 	as := newAttackServer(*domain)
+	attackServerWrapped := promhttp.InstrumentHandlerInFlight(inFlightGauge,
+		promhttp.InstrumentHandlerDuration(
+			duration.MustCurryWith(prometheus.Labels{"domain": "attack"}),
+			promhttp.InstrumentHandlerCounter(
+				counter.MustCurryWith(prometheus.Labels{"domain": "attack"}),
+				as,
+			),
+		))
 
-	router := createRouter(vulnerableOrigin, safeOrigin, trustedCrossOrigin, as)
+	router := createRouter(
+		vulnerableOriginWrapped,
+		safeOriginWrapped,
+		trustedCrossOriginWrapped,
+		attackServerWrapped,
+	)
+
+	// instrument router with prometheus metrics
+
 	if err := http.Serve(ln, router); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+func runDebugServer(ctx context.Context) {
+	mux := http.NewServeMux()
+	tsweb.Debugger(mux)
+	ln, err := net.Listen("tcp", ":8081")
+	if err != nil {
+		log.Fatalf("failed to create listener %v", err)
+	}
+	go func() {
+		<-ctx.Done()
+		ln.Close()
+	}()
+	go func() {
+		if err := http.Serve(ln, mux); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
 }
 
 func createListener() net.Listener {
@@ -88,24 +184,25 @@ func createListener() net.Listener {
 
 }
 
-func createRouter(vulnerableOrigin, safeOrigin, trustedCrossOrigin http.Handler, as *attackServer) http.Handler {
+func createRouter(vulnerableOrigin, safeOrigin, trustedCrossOrigin, attackServer http.Handler) http.Handler {
 	// route requests to their appropriate origin handler based on the sudomain.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
+		subdomain := strings.Split(r.Host, ".")[0]
+		switch subdomain {
 		// attack origin hosting CSRF form
-		case strings.HasPrefix(r.Host, "attack."):
-			as.ServeHTTP(w, r)
+		case "attack":
+			attackServer.ServeHTTP(w, r)
 		// safe origin with patched gorilla/csrf
-		case strings.HasPrefix(r.Host, "safe."):
+		case "safe":
 			safeOrigin.ServeHTTP(w, r)
 		// safe origin with patched gorilla/csrf that permits cross-origin requests
-		case strings.HasPrefix(r.Host, "trusted."):
+		case "trusted":
 			trustedCrossOrigin.ServeHTTP(w, r)
 		// target origin with vulnerable gorilla/csrf
-		case strings.HasPrefix(r.Host, "target."):
+		case "target":
 			vulnerableOrigin.ServeHTTP(w, r)
 		default:
-			as.ServeHTTP(w, r)
+			attackServer.ServeHTTP(w, r)
 		}
 	})
 }

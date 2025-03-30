@@ -24,4 +24,4 @@ cpu_kind = 'shared'
 cpus = 1
 
 [experimental]
-cmd = ["/usr/bin/csrf-demo", "-domain=csrf.patrickod.com"]
+cmd = ["/usr/bin/csrf-demo", "-domain=csrf.patrickod.com", "-debug"]
