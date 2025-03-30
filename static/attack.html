@@ -17,18 +17,24 @@
 
 <body class="dark:bg-gray-900">
     <div class="prose dark:prose-invert md:container md:mx-auto p-4">
-        <h1 class="mt-1em dark:text-white text-center">gorilla/csrf CSRF demo</h1>
+        <h1 class="mt-1em  text-center">gorilla/csrf CSRF demo</h1>
         <div class="lg:grid lg:grid-cols-2 gap-4">
             <div class="px-2">
                 <div>
-                    <h2 class="dark:text-white mt-[0.5em]">What</h2>
+                    <h2 class=" mt-[0.5em]">What</h2>
                     <p>
                         This page demonstrates a CSRF vulnerability in the <a href="https://github.com/gorilla/csrf">gorilla/csrf</a> Go library.
                         This vulnerability exists in all published versions of gorilla/csrf since its initial release.
                     </p>
+                    <p><strong>NB: </strong>This vulnerabilty requires the
+                    ability for the attacker to set cookies that will be sent to
+                    the target origin. The example attack achieves this by
+                    hosting the CSRF entrypoint on an origin shares a common top
+                    level domain with the target.
+                    </p>
                 </div>
                 <div>
-                    <h2 class="dark:text-white">How</h2>
+                    <h2 class="">How</h2>
                     <p>
                         gorilla/csrf does not validate the Origin header of incoming requests against an allowlist and
                         instead performs CSRF validation by inspecting the Referer
@@ -86,7 +92,7 @@ URL *[url](https://pkg.go.dev/net/url).[URL](https://pkg.go.dev/net/url#URL)</pr
             </div>
             <div class="">
                 <div class="demo-highlight">
-                    <h2 class="dark:text-white mt-[0.5em]">CSRF attack and patch demonstration</h2>
+                    <h2 class=" mt-[0.5em]">CSRF attack and patch demonstration</h2>
                     <p>
                         This page scrapes <a href="https://target.{{ .Domain }}"><code>target.{{ .Domain }}</code></a> for a valid CSRF token & cookie combination to use for its attack.
                         It sets the exfiltated CSRF cookie on the top level domain that it shares in
@@ -104,8 +110,8 @@ URL *[url](https://pkg.go.dev/net/url).[URL](https://pkg.go.dev/net/url#URL)</pr
                         <div>
                             <h4>Your attack values</h4>
                             <div class="text-sm">
-                                <div>CSRF Token: <code class="dark:text-white break-all">{{ .Token }}</code></div>
-                                <div>Cookie: <code class="dark:text-white break-all">{{ .Cookie }}</code></div>
+                                <div>CSRF Token: <code class=" break-all">{{ .Token }}</code></div>
+                                <div>Cookie: <code class=" break-all">{{ .Cookie }}</code></div>
                             </div>
                         </div>
                         <div class="border rounded-lg p-4 dark:bg-gray-800">
@@ -144,7 +150,7 @@ URL *[url](https://pkg.go.dev/net/url).[URL](https://pkg.go.dev/net/url#URL)</pr
                     </div>
                 </div>
                 <div class="px-2">
-                    <h2 class="dark:text-white">Timeline</h2>
+                    <h2 class="">Timeline</h2>
                     <div class="space-y-4">
                         <div class="flex flex-col md:flex-row">
                             <span class="font-bold md:w-32">2015-08-04</span>
@@ -185,11 +191,11 @@ URL *[url](https://pkg.go.dev/net/url).[URL](https://pkg.go.dev/net/url#URL)</pr
                     </div>
                 </div>
                 <div class="px-2">
-                    <h2 class="dark:text-white">View the source</h2>
+                    <h2 class="">View the source</h2>
                     <p>Source code for this site is available <a href="https://github.com/patrickod/csrf-demo">on Github</a>.</p>
                 </div>
                 <div class="px-2">
-                    <h2 class="dark:text-white">Who</h2>
+                    <h2 class="">Who</h2>
                     <p>I'm <a href="https://patrickod.computer">Patrick O'Doherty</a>, a Security Engineer living in San
                         Francisco.</p>
                 </div>
