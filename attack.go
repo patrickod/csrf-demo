@@ -45,10 +45,11 @@ func newAttackServer(target string) *attackServer {
 }
 
 func (as *attackServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Printf("attackServer: %s %s", r.Method, r.URL.Path)
 	switch r.Method {
 	case "GET":
 		if strings.HasPrefix(r.URL.Path, "/static/") {
-			http.FileServer(assetHTTPFS).ServeHTTP(w, r)
+			http.FileServer(http.FS(staticFS)).ServeHTTP(w, r)
 			return
 		}
 		as.attackOriginHandler(w, r)
@@ -103,6 +104,10 @@ func (as *attackServer) attackOriginHandler(w http.ResponseWriter, _ *http.Reque
 func (as *attackServer) scrapeTarget(domain string) (token, cookie string, err error) {
 	as.scrapeMutex.Lock()
 	defer as.scrapeMutex.Unlock()
+
+	if *dev {
+		return "test-token", "test-cookie", nil
+	}
 
 	// fetch CSRF token & cookie from the target origin
 	resp, err := as.client.Get(fmt.Sprintf("https://target.%s/params.json", domain))

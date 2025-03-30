@@ -145,25 +145,46 @@ URL *[url](https://pkg.go.dev/net/url).[URL](https://pkg.go.dev/net/url#URL)
                 </div>
                 <div class="px-2">
                     <h2 class="dark:text-white">Timeline</h2>
-                    <p>
-                    <ul>
-                        <li><span class="inline-block w-24">2015-08-04</span><a href="https://github.com/gorilla/csrf/commit/21dad7a81a52b69de043cd46eb1e603cf5d1c6d1">initial gorilla/csrf commit with vulnerability</a> </li>
-                        <li>
-                            <span class="inline-block w-24">2024-12-15</span>initial disclosure to gorilla project maintainers </li>
-                        <li>
-                            <span class="inline-block w-24">2025-01-06</span>patch submitted upstream
-                        </li>
-                        <li>
-                            <span class="inline-block w-24">2025-01-23</span>patch accepted into project main branch
-                        </li>
-                        <li>
-                            <span class="inline-block w-24">{{ .Today }}</span>you are here
-                        </li>
-                        <li>
-                            <span class="inline-block w-24">???</span>patched gorilla/csrf version released
-                        </li>
-                    </ul>
-                    </p>
+                    <div class="grid grid-cols-3 md:grid-cols-5 gap-4">
+                        <div class="col-span-1 flex items-center">
+                            <span class="inline-block font-bold">2015-08-04</span>
+                        </div>
+                        <div class="col-span-2 md:col-span-4">
+                            <a href="https://github.com/gorilla/csrf/commit/21dad7a81a52b69de043cd46eb1e603cf5d1c6d1" class="underline">
+                                initial gorilla/csrf commit with vulnerability
+                            </a>
+                        </div>
+                        <div class="col-span-1 flex items-center">
+                            <span class="inline-block font-bold">2024-12-15</span>
+                        </div>
+                        <div class="col-span-2 md:col-span-4">
+                            initial disclosure to gorilla project maintainers
+                        </div>
+                        <div class="col-span-1 flex items-center">
+                            <span class="inline-block font-bold">2025-01-06</span>
+                        </div>
+                        <div class="col-span-2 md:col-span-4">
+                            patch submitted upstream
+                        </div>
+                        <div class="col-span-1 flex items-center">
+                            <span class="inline-block font-bold">2025-01-23</span>
+                        </div>
+                        <div class="col-span-2 md:col-span-4">
+                            patch accepted into project main branch
+                        </div>
+                        <div class="col-span-1 flex items-center">
+                            <span class="inline-block font-bold">{{ .Today }}</span>
+                        </div>
+                        <div class="col-span-2 md:col-span-4">
+                            you are here
+                        </div>
+                        <div class="col-span-1 flex items-center">
+                            <span class="inline-block font-bold">???</span>
+                        </div>
+                        <div class="col-span-2 md:col-span-4">
+                            patched gorilla/csrf version released
+                        </div>
+                    </div>
                 </div>
                 <div class="px-2">
                     <h2 class="dark:text-white">View the source</h2>

@@ -21,12 +21,11 @@ import (
 
 var (
 	//go:embed static/*
-	staticFS    embed.FS
-	assetHTTPFS http.FileSystem
-	templates   = template.Must(template.New("templates").ParseFS(staticFS, "static/*.html"))
+	staticFS  embed.FS
+	templates = template.Must(template.New("templates").ParseFS(staticFS, "static/*.html"))
 
 	// CLI flags
-	domain      = flag.String("domain", "example.test", "domain to use for the demo (bind it, target.$DOMAIN, and attack.$DOMAIN to localhost with /etc/hosts)")
+	domain      = flag.String("domain", "csrf.patrickod.com", "domain to use for the demo (bind it, target.$DOMAIN, and attack.$DOMAIN to localhost with /etc/hosts)")
 	listen      = flag.String("listen", ":443", "address to listen on")
 	tlsCertFile = flag.String("tls-cert", "", "path to TLS certificate file")
 	tlsKeyFile  = flag.String("tls-key", "", "path to TLS key file")
@@ -35,12 +34,6 @@ var (
 
 func main() {
 	flag.Parse()
-
-	if *dev {
-		assetHTTPFS = http.Dir("./static")
-	} else {
-		assetHTTPFS = http.FS(staticFS)
-	}
 
 	ln := createListener()
 	log.Printf("listening on %s", ln.Addr())
@@ -112,7 +105,7 @@ func createRouter(vulnerableOrigin, safeOrigin, trustedCrossOrigin http.Handler,
 		case strings.HasPrefix(r.Host, "target."):
 			vulnerableOrigin.ServeHTTP(w, r)
 		default:
-			vulnerableOrigin.ServeHTTP(w, r)
+			as.ServeHTTP(w, r)
 		}
 	})
 }
@@ -160,7 +153,7 @@ func targetOriginHandler() http.Handler {
 	mux.HandleFunc("POST /submit", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "SUCCESSFUL POST REQUEST")
 	})
-	mux.Handle("GET /static/", http.FileServer(assetHTTPFS))
+	mux.Handle("GET /static/", http.FileServer(http.FS(staticFS)))
 	mux.HandleFunc("GET /", serveTargetHome)
 	return mux
 }

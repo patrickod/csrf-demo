@@ -28,3 +28,7 @@ tbody td {
 .demo-highlight table {
     margin-bottom: 1em;
 }
+
+ul > li > span {
+    @apply font-bold;
+}

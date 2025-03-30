@@ -167,6 +167,21 @@
   }
 }
 @layer utilities {
+  .static {
+    position: static;
+  }
+  .col-span-1 {
+    grid-column: span 1 / span 1;
+  }
+  .col-span-2 {
+    grid-column: span 2 / span 2;
+  }
+  .col-span-3 {
+    grid-column: span 3 / span 3;
+  }
+  .col-span-4 {
+    grid-column: span 4 / span 4;
+  }
   .my-5 {
     margin-block: calc(var(--spacing) * 5);
   }
@@ -597,6 +612,9 @@
   .flex {
     display: flex;
   }
+  .grid {
+    display: grid;
+  }
   .hidden {
     display: none;
   }
@@ -614,6 +632,21 @@
   }
   .table-auto {
     table-layout: auto;
+  }
+  .grid-cols-1 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  .grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .grid-cols-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .items-center {
+    align-items: center;
   }
   .justify-center {
     justify-content: center;
@@ -660,6 +693,11 @@
     --tw-shadow: 0 10px 15px -3px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 4px 6px -4px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
+  .md\:col-span-4 {
+    @media (width >= 48rem) {
+      grid-column: span 4 / span 4;
+    }
+  }
   .md\:container {
     @media (width >= 48rem) {
       width: 100%;
@@ -683,6 +721,16 @@
   .md\:mx-auto {
     @media (width >= 48rem) {
       margin-inline: auto;
+    }
+  }
+  .md\:grid-cols-2 {
+    @media (width >= 48rem) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .md\:grid-cols-5 {
+    @media (width >= 48rem) {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
     }
   }
   .lg\:grid {
@@ -774,6 +822,10 @@ tbody td {
 }
 .demo-highlight table {
   margin-bottom: 1em;
+}
+ul > li > span {
+  --tw-font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-bold);
 }
 @property --tw-font-weight {
   syntax: "*";
