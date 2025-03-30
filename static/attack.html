@@ -6,6 +6,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="./static/output.css" />
+    <script type="text/javascript">
+        // On page load or when changing themes, best to add inline in `head` to avoid FOUC
+        document.documentElement.classList.toggle(
+            "dark",
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+        );
+    </script>
 </head>
 
 <body class="dark:bg-gray-900">
