@@ -95,53 +95,48 @@ URL *[url](https://pkg.go.dev/net/url).[URL](https://pkg.go.dev/net/url#URL)
                         malicious cookie will be sent in preference instead of any existing CSRF cookie set by the
                         application.
                     </p>
-                    <div>
-                        <h4>Your attack values</h4>
-                        <div class="text-sm">
-                            <div>CSRF Token: <code class="dark:text-white break-all">{{ .Token }}</code></div>
-                            <div>Cookie: <code class="dark:text-white break-all">{{ .Cookie }}</code></div>
+                    <div class="space-y-4">
+                        <div>
+                            <h4>Your attack values</h4>
+                            <div class="text-sm">
+                                <div>CSRF Token: <code class="dark:text-white break-all">{{ .Token }}</code></div>
+                                <div>Cookie: <code class="dark:text-white break-all">{{ .Cookie }}</code></div>
+                            </div>
+                        </div>
+                        <div class="border rounded-lg p-4 dark:bg-gray-800">
+                            <div class="text-sm dark:text-gray-100">
+                                <div class="font-bold">Target:</div>
+                                <code>target.{{ .Domain }}</code>
+                            </div>
+                            <div class="text-sm dark:text-gray-100 mt-2">
+                                <div class="font-bold">Description:</div>
+                                successful CSRF attack against <span class="underline">vulnerable</span> gorilla/csrf
+                                codebase
+                            </div>
+                            <div class="mt-4">
+                                <form method="post" action="https://target.{{ .Domain }}/submit">
+                                    <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
+                                    <button type="submit" class="btn btn-blue w-full md:w-1/3">Submit CSRF</button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="border rounded-lg p-4 dark:bg-gray-800">
+                            <div class="text-sm dark:text-gray-100">
+                                <div class="font-bold">Target:</div>
+                                <code>safe.{{ .Domain }}</code>
+                            </div>
+                            <div class="text-sm dark:text-gray-100 mt-2">
+                                <div class="font-bold">Description:</div>
+                                failed CSRF attack against <span class="underline">patched</span> gorilla/csrf codebase
+                            </div>
+                            <div class="mt-4">
+                                <form method="post" action="https://safe.{{ .Domain }}/submit">
+                                    <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
+                                    <button type="submit" class="btn btn-blue w-full md:w-1/3">Submit CSRF</button>
+                                </form>
+                            </div>
                         </div>
                     </div>
-                    <table class="table-auto">
-                        <thead>
-                            <tr>
-                                <th></th>
-                                <th>Target</th>
-                                <th>Description</th>
-                            </tr>
-                        </thead>
-                        <tbody class="text-sm dark:text-gray-100">
-                            <tr>
-                                <td class="align-middle">
-                                    <form method="post" action="https://target.{{ .Domain }}/submit">
-                                        <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
-                                        <button type="submit" class="btn btn-blue">Submit CSRF</button>
-                                    </form>
-                                </td>
-                                <td class="align-middle">
-                                    <code>target.{{ .Domain }}</code>
-                                </td>
-                                <td class="align-middle">
-                                    successful CSRF attack against <span class="underline">vulnerable</span> gorilla/csrf
-                                    codebase
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="align-middle">
-                                    <form method="post" action="https://safe.{{ .Domain }}/submit">
-                                        <input type="hidden" name="gorilla.csrf.Token" value="{{ .Token }}">
-                                        <button type="submit" class="btn btn-blue">Submit CSRF</button>
-                                    </form>
-                                </td>
-                                <td class="align-middle">
-                                    <code>safe.{{ .Domain }}</code>
-                                </td>
-                                <td class="align-middle">
-                                    failed CSRF attack against <span class="underline">patched</span> gorilla/csrf codebase
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
                 <div class="px-2">
                     <h2 class="dark:text-white">Timeline</h2>
@@ -170,7 +165,7 @@ URL *[url](https://pkg.go.dev/net/url).[URL](https://pkg.go.dev/net/url#URL)
                             <span class="inline-block font-bold">2025-01-23</span>
                         </div>
                         <div class="col-span-2 md:col-span-4">
-                            patch accepted into project main branch
+                            <a href="https://github.com/gorilla/csrf/commit/9dd6af1f6d30fc79fb0d972394deebdabad6b5eb">patch accepted into project main branch</a>
                         </div>
                         <div class="col-span-1 flex items-center">
                             <span class="inline-block font-bold">{{ .Today }}</span>
