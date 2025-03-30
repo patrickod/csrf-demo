@@ -139,44 +139,42 @@ URL *[url](https://pkg.go.dev/net/url).[URL](https://pkg.go.dev/net/url#URL)
                 </div>
                 <div class="px-2">
                     <h2 class="dark:text-white">Timeline</h2>
-                    <div class="grid grid-cols-3 md:grid-cols-5 gap-4">
-                        <div class="col-span-1 flex items-center">
-                            <span class="inline-block font-bold">2015-08-04</span>
-                        </div>
-                        <div class="col-span-2 md:col-span-4">
+                    <div class="space-y-4">
+                        <div class="flex flex-col md:flex-row">
+                            <span class="font-bold md:w-32">2015-08-04</span>
                             <a href="https://github.com/gorilla/csrf/commit/21dad7a81a52b69de043cd46eb1e603cf5d1c6d1" class="underline">
                                 initial gorilla/csrf commit with vulnerability
                             </a>
                         </div>
-                        <div class="col-span-1 flex items-center">
-                            <span class="inline-block font-bold">2024-12-15</span>
+                        <div class="flex flex-col md:flex-row">
+                            <span class="font-bold md:w-32">2024-12-15</span>
+                            <span>
+                                initial disclosure to gorilla project maintainers
+                            </span>
                         </div>
-                        <div class="col-span-2 md:col-span-4">
-                            initial disclosure to gorilla project maintainers
+                        <div class="flex flex-col md:flex-row">
+                            <span class="font-bold md:w-32">2025-01-06</span>
+                            <span>
+                                patch submitted upstream
+                            </span>
                         </div>
-                        <div class="col-span-1 flex items-center">
-                            <span class="inline-block font-bold">2025-01-06</span>
+                        <div class="flex flex-col md:flex-row">
+                            <span class="font-bold md:w-32">2025-01-23</span>
+                            <a href="https://github.com/gorilla/csrf/commit/9dd6af1f6d30fc79fb0d972394deebdabad6b5eb" class="underline">
+                                patch accepted into project main branch
+                            </a>
                         </div>
-                        <div class="col-span-2 md:col-span-4">
-                            patch submitted upstream
+                        <div class="flex flex-col md:flex-row">
+                            <span class="font-bold md:w-32">{{ .Today }}</span>
+                            <span>
+                                you are here
+                            </span>
                         </div>
-                        <div class="col-span-1 flex items-center">
-                            <span class="inline-block font-bold">2025-01-23</span>
-                        </div>
-                        <div class="col-span-2 md:col-span-4">
-                            <a href="https://github.com/gorilla/csrf/commit/9dd6af1f6d30fc79fb0d972394deebdabad6b5eb">patch accepted into project main branch</a>
-                        </div>
-                        <div class="col-span-1 flex items-center">
-                            <span class="inline-block font-bold">{{ .Today }}</span>
-                        </div>
-                        <div class="col-span-2 md:col-span-4">
-                            you are here
-                        </div>
-                        <div class="col-span-1 flex items-center">
-                            <span class="inline-block font-bold">???</span>
-                        </div>
-                        <div class="col-span-2 md:col-span-4">
-                            patched gorilla/csrf version released
+                        <div class="flex flex-col md:flex-row">
+                            <span class="font-bold md:w-32">???</span>
+                            <span>
+                                patched gorilla/csrf version released
+                            </span>
                         </div>
                     </div>
                 </div>
