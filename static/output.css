@@ -6,10 +6,12 @@
       "Courier New", monospace;
     --color-red-500: oklch(0.637 0.237 25.331);
     --color-red-800: oklch(0.444 0.177 26.899);
+    --color-orange-500: oklch(0.705 0.213 47.604);
+    --color-orange-700: oklch(0.553 0.195 38.402);
     --color-blue-700: oklch(0.488 0.243 264.376);
     --color-blue-900: oklch(0.379 0.146 265.522);
     --color-gray-100: oklch(0.967 0.003 264.542);
-    --color-gray-400: oklch(0.707 0.022 261.325);
+    --color-gray-200: oklch(0.928 0.006 264.531);
     --color-gray-900: oklch(0.21 0.034 264.665);
     --color-white: #fff;
     --spacing: 0.25rem;
@@ -586,6 +588,9 @@
   .mt-10 {
     margin-top: calc(var(--spacing) * 10);
   }
+  .mt-\[0\.5em\] {
+    margin-top: 0.5em;
+  }
   .contents {
     display: contents;
   }
@@ -610,14 +615,11 @@
   .table-auto {
     table-layout: auto;
   }
-  .items-center {
-    align-items: center;
-  }
   .justify-center {
     justify-content: center;
   }
-  .gap-8 {
-    gap: calc(var(--spacing) * 8);
+  .gap-4 {
+    gap: calc(var(--spacing) * 4);
   }
   .rounded-lg {
     border-radius: var(--radius-lg);
@@ -628,14 +630,14 @@
   .p-4 {
     padding: calc(var(--spacing) * 4);
   }
+  .px-2 {
+    padding-inline: calc(var(--spacing) * 2);
+  }
   .text-center {
     text-align: center;
   }
   .align-middle {
     vertical-align: middle;
-  }
-  .font-mono {
-    font-family: var(--font-mono);
   }
   .text-sm {
     font-size: var(--text-sm);
@@ -647,9 +649,6 @@
   }
   .break-all {
     word-break: break-all;
-  }
-  .text-red-800 {
-    color: var(--color-red-800);
   }
   .italic {
     font-style: italic;
@@ -706,11 +705,6 @@
       color: var(--color-gray-100);
     }
   }
-  .dark\:text-gray-400 {
-    &:where(.dark, .dark *) {
-      color: var(--color-gray-400);
-    }
-  }
   .dark\:text-white {
     &:where(.dark, .dark *) {
       color: var(--color-white);
@@ -750,9 +744,15 @@
 .btn-blue {
   background-color: var(--color-blue-700);
   color: var(--color-white);
+  &:where(.dark, .dark *) {
+    background-color: var(--color-orange-700);
+  }
 }
 .btn-blue:hover {
   background-color: var(--color-blue-900);
+  &:where(.dark, .dark *) {
+    background-color: var(--color-orange-500);
+  }
 }
 code {
   font-family: var(--font-mono);
@@ -763,6 +763,17 @@ code {
 }
 tbody td {
   padding: calc(var(--spacing) * 2);
+}
+.demo-highlight {
+  border-radius: 0.25rem;
+  background-color: var(--color-gray-200);
+  padding: calc(var(--spacing) * 2);
+  &:where(.dark, .dark *) {
+    background-color: var(--color-blue-900);
+  }
+}
+.demo-highlight table {
+  margin-bottom: 1em;
 }
 @property --tw-font-weight {
   syntax: "*";

@@ -5,10 +5,10 @@
 @apply font-bold py-2 px-2 rounded cursor-pointer;
 }
 .btn-blue {
-@apply bg-blue-700 text-white;
+@apply bg-blue-700 dark:bg-orange-700 text-white;
 }
 .btn-blue:hover {
-@apply bg-blue-900;
+@apply bg-blue-900 dark:bg-orange-500 ;
 }
 
 code {
@@ -20,3 +20,11 @@ tbody td {
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+.demo-highlight {
+    @apply bg-gray-200 dark:bg-blue-900 rounded p-2;
+}
+
+.demo-highlight table {
+    margin-bottom: 1em;
+}
