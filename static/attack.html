@@ -13,6 +13,14 @@
             window.matchMedia("(prefers-color-scheme: dark)").matches
         );
     </script>
+    <!-- Open Graph meta tags for rich preview embedding -->
+    <meta property="og:title" content="gorilla/csrf CSRF demo">
+    <meta property="og:description" content="Demonstration of a CSRF vulnerability in the gorilla/csrf Go library.">
+    <!--
+    <meta property="og:image" content="https://example.com/static/preview-image.png">
+    -->
+    <meta property="og:url" content="https://attack.{{ .Domain }}">
+    <meta property="og:type" content="website">
 </head>
 
 <body class="dark:bg-gray-900">
