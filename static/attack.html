@@ -45,8 +45,7 @@ if r.URL.Scheme == "https" {
         cs.opts.ErrorHandler.ServeHTTP(w, r)
         return
     }
-    ...
-                    </pre>
+    ...</pre>
                     <p>However, <a href="https://pkg.go.dev/net/http#Request">per the Go spec</a>, this field is never populated for "server" requests.</p>
                     <pre>
 // URL specifies either the URI being requested (for server
