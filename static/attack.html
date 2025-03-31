@@ -25,7 +25,7 @@
 
 <body class="dark:bg-gray-900">
     <div class="prose dark:prose-invert md:container md:mx-auto p-4">
-        <h1 class="mt-1em  text-center">gorilla/csrf CSRF demo</h1>
+        <h1 class="mt-1em  text-center">gorilla/csrf CSRF vulnerability demo</h1>
         <div class="lg:grid lg:grid-cols-2 gap-4">
             <div class="px-2">
                 <div>
@@ -37,7 +37,7 @@
                     <p><strong>NB: </strong>This vulnerability requires the
                     ability for the attacker to set cookies that will be sent to
                     the target origin. The demonstration attack achieves this by
-                    hosting the CSRF entrypoint on an origin shares a common top
+                    hosting the CSRF entrypoint on an origin that shares a common top
                     level domain with the target.
                     </p>
                 </div>
@@ -90,7 +90,7 @@ URL *[url](https://pkg.go.dev/net/url).[URL](https://pkg.go.dev/net/url#URL)</pr
                             suite</a></a> relies on
                         contains a subtle bug whereby it will populate the <code>r.URL.Scheme</code> field on
                         requests that it creates when passed a full URL string. This results in
-                        <code>http.Request</code> objects that are unlike any that will exist in production allowing
+                        <code>http.Request</code> objects unlike any that will exist in production allowing
                         unit tests to pass that would otherwise fail.
                     </p>
                     <p>Here is a <a href="https://go.dev/play/p/RED4YWPDsbc">Go playground</a> that demonstrates the
