@@ -14,8 +14,8 @@
         );
     </script>
     <!-- Open Graph meta tags for rich preview embedding -->
-    <meta property="og:title" content="gorilla/csrf CSRF demo">
-    <meta property="og:description" content="Demonstration of a CSRF vulnerability in the gorilla/csrf Go library.">
+    <meta property="og:title" content="gorilla/csrf CSRF vulnerability demo">
+    <meta property="og:description" content="A demonstration of a novel CSRF vulnerability in the gorilla/csrf Go library.">
     <!--
     <meta property="og:image" content="https://example.com/static/preview-image.png">
     -->
@@ -34,7 +34,7 @@
                         This page demonstrates a CSRF vulnerability in the <a href="https://github.com/gorilla/csrf">gorilla/csrf</a> Go library.
                         This vulnerability exists in all published versions of gorilla/csrf since its initial release.
                     </p>
-                    <p><strong>NB: </strong>This vulnerabilty requires the
+                    <p><strong>NB: </strong>This vulnerability requires the
                     ability for the attacker to set cookies that will be sent to
                     the target origin. The example attack achieves this by
                     hosting the CSRF entrypoint on an origin shares a common top
@@ -82,13 +82,13 @@ if r.URL.Scheme == "https" {
 // specifies the Host header value to send in the HTTP
 // request.
 URL *[url](https://pkg.go.dev/net/url).[URL](https://pkg.go.dev/net/url#URL)</pre>
+                    <h3>But what about the unit tests?</h3>
                     <p>
-                        <span class="italic font-bold">“But what about the unit tests?!”</span> I hear you ask.
                         Unfortunately the
                         <code>net/httptest.NewRequest</code> helper function that the <a
                             href="https://github.com/gorilla/csrf/blob/v1.7.2/csrf_test.go#L246">gorilla/csrf test
                             suite</a></a> relies on
-                        contains a subtle bug whereby it will populate the <code>r.URL.Scheme</code> field on the
+                        contains a subtle bug whereby it will populate the <code>r.URL.Scheme</code> field on
                         requests that it creates when passed a full URL string. This results in
                         <code>http.Request</code> objects that are unlike any that will exist in production allowing
                         unit tests to pass that would otherwise fail.
@@ -103,7 +103,7 @@ URL *[url](https://pkg.go.dev/net/url).[URL](https://pkg.go.dev/net/url#URL)</pr
                     <h2 class=" mt-[0.5em]">CSRF attack and patch demonstration</h2>
                     <p>
                         This page scrapes <a href="https://target.{{ .Domain }}"><code>target.{{ .Domain }}</code></a> for a valid CSRF token & cookie combination to use for its attack.
-                        It sets the exfiltated CSRF cookie on the top level domain that it shares in
+                        It sets the exfiltrated CSRF cookie on the top level domain that it shares in
                         common with the target origin but with a more specific path matching the target form.
                     </p>
                     <p>
